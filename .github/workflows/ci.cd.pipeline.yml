@@ -5,74 +5,76 @@ on:
     branches: [ "master" ]
   pull_request:
     branches: [ "master" ]
-  workflow_dispatch: # Permite execução manual
+  workflow_dispatch:
+
+env:
+  # Resolve o alerta de depreciação do Node.js 20
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build_and_test:
-    name: Build, Test e Análise (SAST)
+    name: Build, Test e Analise (SAST)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configurar JDK 17
+      - name: Configurar JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21' # Alterado para 21 para alinhar com seu pom.xml
           distribution: 'temurin'
-          cache: gradle
+          cache: maven # Alterado de gradle para maven
 
       - name: Executar Build e Testes (JUnit/Jqwik)
-        run: ./gradlew build jacocoTestReport
+        # Comando Maven para compilar, testar e gerar relatorio Jacoco
+        run: mvn clean verify
 
-      # TP5: Log personalizado para depuração
       - name: Log de Cobertura
-        run: echo "::notice title=Testes Concluídos::Testes unitários e de propriedades finalizados. Verifique o relatório JaCoCo."
+        run: echo "::notice title=Testes Concluidos::Testes unitarios e de propriedades finalizados via Maven. Verifique o relatorio JaCoCo."
 
-      - name: Análise Estática (Simulação SAST/Sonar)
-        run: |
-          echo "Executando varredura de segurança no código..."
-          # ./gradlew sonarqube (simulado)
+      - name: Analise Estatica (Simulacao SAST)
+        run: echo "Executando varredura de seguranca no codigo fonte..."
 
       - name: Upload Artefato de Build
         uses: actions/upload-artifact@v4
         with:
           name: app-jar
-          path: build/libs/*.jar
+          path: target/*.jar # Maven coloca os arquivos na pasta target, nao build
 
   deploy_homologacao:
-    name: Deploy em Homologação
+    name: Deploy em Homologacao
     needs: build_and_test
     runs-on: ubuntu-latest
-    environment: homologacao # TP5: Proteção de ambiente
+    environment: homologacao
     steps:
       - name: Deploy Simulado
         env:
-          API_KEY: ${{ secrets.HOMOLOG_API_KEY }} # TP5: Uso seguro de variáveis
+          API_KEY: ${{ secrets.HOMOLOG_API_KEY }}
         run: |
-          echo "Realizando deploy em ambiente de Homologação usando OIDC..."
-          echo "::notice title=Deploy HOMOLOG::Deploy concluído com sucesso."
+          echo "Realizando deploy em ambiente de Homologacao..."
+          echo "::notice title=Deploy HOMOLOG::Deploy concluido com sucesso."
 
   deploy_producao:
-    name: Deploy em Produção
+    name: Deploy em Producao
     needs: deploy_homologacao
     runs-on: ubuntu-latest
-    environment: producao # Requer aprovação manual configurada nas settings do repo
+    environment: producao
     steps:
       - uses: actions/checkout@v4
 
       - name: Deploy Simulado
         env:
           PROD_DB_PWD: ${{ secrets.PROD_DB_PASSWORD }}
-        run: |
-          echo "Realizando deploy no ambiente de Produção..."
+        run: echo "Realizando deploy no ambiente de Producao..."
 
       - name: Configurar Chrome para Selenium
         uses: browser-actions/setup-chrome@v1
 
-      - name: Testes Pós-Deploy com Selenium
+      - name: Testes Pos-Deploy com Selenium
         env:
           APP_URL: ${{ vars.PROD_URL }}
-        run: |
-          echo "Iniciando bateria de testes UI em Produção..."
-          ./gradlew test --tests "com.empresa.sistema.e2e.SeleniumPostDeployTest"
-          echo "::notice title=Health Check Produção::Testes pós-deploy passaram com sucesso!"
+        # Comando Maven para rodar apenas o teste especifico do Selenium
+        run: mvn test -Dtest=SeleniumPostDeployTest
+
+      - name: Log Final
+        run: echo "::notice title=Health Check Producao::Testes pos-deploy com Selenium concluidos com sucesso!"
