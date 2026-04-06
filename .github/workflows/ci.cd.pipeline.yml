@@ -62,6 +62,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Configurar JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
       - name: Deploy Simulado
         env:
           PROD_DB_PWD: ${{ secrets.PROD_DB_PASSWORD }}
@@ -73,7 +80,7 @@ jobs:
       - name: Testes Pos-Deploy com Selenium
         env:
           APP_URL: ${{ vars.PROD_URL }}
-        # Comando Maven para rodar apenas o teste especifico do Selenium
+        # Agora o Maven encontrara o Java 21 e conseguira compilar os testes
         run: mvn test -Dtest=SeleniumPostDeployTest
 
       - name: Log Final
